@@ -1,0 +1,34 @@
+3. Important backend integration
+
+   This component expects the following endpoints, which you still need to implement unless they already exist.
+   Endpoint => Purpose
+   - POST /api/auth/login => Validate credentials, verify the password hash, and establish a secure session
+   - /api/auth/google => Start Google OAuth authentication
+   - /dashboard => Student learning dashboard
+   - /register => New student registration
+   - /forgot-password => Password recovery
+
+Security notes:
+
+- Store password hashes, never plaintext passwords.
+- Use secure, HTTP-only session cookies.
+- Protect /dashboard on the server so unauthenticated users cannot access it.
+- Validate credentials and rate-limit login attempts on the backend.
+- The component's Google URL is a placeholder route; configure it to match your chosen authentication library.
+
+Phase 2:
+— Complete Authentication for LearnCodeCraft4me.
+We'll follow this order so the login, registration, password recovery, Google sign-in, and protected dashboard work together with your Next.js, TypeScript, Tailwind CSS, Prisma, and MySQL stack.
+Step Task File or route
+
+
+   [ui-]   1. Login page                                 app/login/page.tsx
+   [ui-]   2. Register page                              app/register/page.tsx
+   [ui-]   3. Reset page                                 app/reset-password/page.tsx
+   [ui-]   4. Forgot password page                       app/forgot-password/page.tsx
+   [ui-]   5. Email verification page                    app/verify-email/page.tsx
+   []   6. Authentication API and database logic      app/api/auth/
+   []   7. Google OAuth integration                   /api/auth/google
+   []   8. Sessions and protected routes              roxy.ts or server-side checks
+
+Important: We'll use secure, expiring, single-use tokens for password reset and email verification, and server-side session validation for protected pages. The existing authentication pages are UI components; their API routes still need to be connected to the database and email provider.

@@ -1,0 +1,211 @@
+Follow this order to connect your existing pages to a working authentication system:
+1. Prisma schema — users, roles, password hashes, verification tokens, and reset tokens.
+2. MySQL connection — configure Prisma and environment variables.
+3. Register API — validate input, hash passwords, and create accounts.
+4. Login API — verify credentials and establish secure sessions.
+5. Forgot/reset password APIs — issue and validate secure reset tokens.
+6. Email verification APIs — verify accounts and resend verification emails.
+7. Google OAuth — support Google sign-in and registration.
+8. Route protection — protect the student dashboard and admin pages.
+Let's start with Step 1: the Prisma schema. We'll build it to fit your existing Next.js App Router project and keep the authentication data model consistent across all five pages.
+
+---------------------------------------------------------------------
+1. Install Prisma
+---------------------------------------------------------------------
+
+    1.1 Check Prisma Version:
+        - npx prisma -v
+
+    1.2 New Prisma Setup:
+        - npm install @prisma/client
+        - npm install -D prisma
+
+        ** both prisma cli has same Version
+
+
+---------------------------------------------------------------------
+2. Configure MySQL
+---------------------------------------------------------------------
+
+    2.1 Add MySQL Connection String in .env:
+        - DATABASE_URL="mysql://DB_USER:DB_PASSWORD@localhost:3306/learncodecraft4me"
+    
+    2.2 Create DATABASE, if doesn't exist:
+        - CREATE DATABASE learncodecraft4me;
+
+
+---------------------------------------------------------------------
+3. Create prisma/schema.prisma
+---------------------------------------------------------------------
+prisma/schema.prisma
+
+````
+
+    generator client {
+    provider = "prisma-client-js"
+    }
+
+    datasource db {
+    provider = "mysql"
+    url      = env("DATABASE_URL")
+    }
+
+    enum UserRole {
+    STUDENT
+    ADMIN
+    }
+
+    model User {
+    id            String    @id @default(cuid())
+    name          String    @db.VarChar(100)
+    email         String    @unique @db.VarChar(191)
+    passwordHash  String?   @db.VarChar(255)
+    emailVerified DateTime?
+    image         String?   @db.VarChar(2048)
+    role          UserRole  @default(STUDENT)
+    isActive      Boolean   @default(true)
+    createdAt     DateTime  @default(now())
+    updatedAt     DateTime  @updatedAt
+
+    accounts              OAuthAccount[]
+    sessions              Session[]
+    passwordResetTokens   PasswordResetToken[]
+    emailVerificationTokens EmailVerificationToken[]
+
+    @@index([role])
+    @@index([isActive])
+    }
+
+    model OAuthAccount {
+    id                String   @id @default(cuid())
+    userId            String
+    provider          String   @db.VarChar(50)
+    providerAccountId String   @db.VarChar(191)
+    createdAt         DateTime @default(now())
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@unique([provider, providerAccountId])
+    @@index([userId])
+    }
+
+    model Session {
+    id        String   @id @default(cuid())
+    tokenHash String   @unique @db.VarChar(64)
+    userId    String
+    expiresAt DateTime
+    createdAt DateTime @default(now())
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+    @@index([expiresAt])
+    }
+
+    model PasswordResetToken {
+    id        String    @id @default(cuid())
+    tokenHash String    @unique @db.VarChar(64)
+    userId    String
+    expiresAt DateTime
+    usedAt    DateTime?
+    createdAt DateTime  @default(now())
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+    @@index([expiresAt])
+    }
+
+    model EmailVerificationToken {
+    id        String    @id @default(cuid())
+    tokenHash String    @unique @db.VarChar(64)
+    userId    String
+    expiresAt DateTime
+    usedAt    DateTime?
+    createdAt DateTime  @default(now())
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+    @@index([expiresAt])
+    }
+
+```
+
+---------------------------------------------------------------------
+4. Generate Prisma Client and create tables
+---------------------------------------------------------------------
+
+    4.1 Run these commands in order:
+        - npx prisma format
+        - npx prisma validate
+        - npx prisma migrate dev --name init_auth
+        - npx prisma generate
+
+    4.2 Inspect the records and tables using:
+        - npx prisma studio
+
+---------------------------------------------------------------------
+5. Create the Prisma client singleton
+---------------------------------------------------------------------
+
+    5.1 Create lib/prisma.ts:
+    ```
+        import { PrismaClient } from "@prisma/client";
+
+        const globalForPrisma = globalThis as unknown as {
+        prisma?: PrismaClient;
+        };
+
+        export const prisma =
+        globalForPrisma.prisma ??
+        new PrismaClient();
+
+        if (process.env.NODE_ENV !== "production") {
+        globalForPrisma.prisma = prisma;
+        }
+
+    ```
+
+-------------- SETUP COMPLETE ----------------
+
+--------------------------------------------------------------
+Test Database API
+--------------------------------------------------------------
+app/api/db/route.ts
+```
+    import { NextResponse } from "next/server";
+    import { prisma } from "@/lib/prisma";
+
+    export const runtime = "nodejs";
+    export const dynamic = "force-dynamic";
+
+    export async function GET() {
+    try {
+        await prisma.$queryRaw`SELECT 1`;
+
+        return NextResponse.json(
+        {
+            success: true,
+            message: "Database connection successful",
+            database: "MySQL",
+            orm: "Prisma",
+            timestamp: new Date().toISOString(),
+        },
+        { status: 200 }
+        );
+    } catch (error) {
+        // Log server-side details for debugging; never expose them to clients.
+        console.error("Database health check failed:", error);
+
+        return NextResponse.json(
+        {
+            success: false,
+            message: "Database connection failed",
+        },
+        { status: 503 }
+        );
+    }
+    }
+
+```
